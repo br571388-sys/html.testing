@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Repo Manager Mobile Pro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ace.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ext-language_tools.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/cloudflare.css">
+</head>
+<body>
+
+<div id="toast">Message</div>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="toggleSidebar()"></div>
+<div class="drawer" id="sidebar">
+    <div class="shrink-0" style="padding:12px 12px 10px;background:#0d1117;border-bottom:1px solid #30363d;">
+        <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="text-xs font-bold text-blue-400 flex items-center gap-1.5"><i data-ic="key"></i>Account</span>
+            <span id="accountNameDisplay" class="text-[11px] text-emerald-400 font-semibold truncate"></span>
+        </div>
+        <div id="savedAccountsContainer" class="hidden mb-2"><div id="savedAccountsList" class="flex gap-1.5 overflow-x-auto scrollbar-hide"></div></div>
+        <div class="flex gap-2">
+            <input type="text" id="apiToken" class="modern-input !mb-0 !py-2 !px-3 text-xs flex-1 min-w-0 font-mono" placeholder="Paste HF Token (hf_...)">
+            <button id="loadBtn" class="mini-btn shrink-0" onclick="loadUserProfile()">Load</button>
+        </div>
+        <p id="tokenHint" class="text-[10px] text-gray-500 mt-1.5 hidden"></p>
+    </div>
+    <div id="sideViews" class="px-3 pt-2 shrink-0 hidden">
+        <div class="seg">
+            <button data-v="repos" onclick="setSideView('repos')" class="!px-1 !text-[11px]"><i data-ic="folder"></i><span>Repos</span></button>
+            <button data-v="gists" onclick="setSideView('gists')" class="!px-1 !text-[11px]"><i data-ic="file-text"></i><span>Gists</span></button>
+            <button data-v="forks" onclick="setSideView('forks')" class="!px-1 !text-[11px]"><i data-ic="git-fork"></i><span>Forks</span></button>
+            <button data-v="stars" onclick="setSideView('stars')" class="!px-1 !text-[11px]"><i data-ic="star"></i><span>Stars</span></button>
+        </div>
+    </div>
+    <div id="newRepoWrap" class="px-3 pt-2 shrink-0 hidden"><button type="button" onclick="openCreateRepo()" class="mini-btn blue w-full"><i data-ic="plus"></i><span id="newRepoLabel">New repository</span></button></div>
+    <div class="px-3 pt-2 shrink-0"><input type="text" id="spaceFilter" class="modern-input !mb-0 !py-1.5 !px-3 text-xs" placeholder="Filter..." oninput="renderSidebarSpaces()"></div>
+    <div class="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-1.5 min-h-0 custom-scrollbar" id="spacesList"><p class="text-xs text-gray-500 text-center mt-10">Nothing loaded yet.</p></div>
+    <div class="shrink-0 flex flex-col gap-2" style="padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#161b22;border-top:1px solid #30363d;">
+        <button id="backupAllBtn" class="mini-btn blue w-full" onclick="openAllSpacesModal()"><i data-ic="package"></i><span>Backup all</span></button>
+        <div class="flex gap-2 items-center">
+            <div class="prov-switch flex-1">
+                <button id="provHF" class="prov-btn" onclick="setProvider('hf')"><i data-ic="smile"></i><span>HF</span></button>
+                <button id="provGH" class="prov-btn" onclick="setProvider('gh')"><i data-ic="github"></i><span>GitHub</span></button>
+                <button id="provCF" class="prov-btn" onclick="cfOpen()"><i data-ic="cloud"></i><span>Cloudflare</span></button>
+            </div>
+            <button class="icon-btn" onclick="openSettings()" title="Settings"><i data-ic="settings"></i></button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="fileTreeModal" style="z-index: 1000;">
+    <div class="modal-box w-full max-w-[95vw] h-[80vh]">
+        <div class="modal-header"><span id="fileTreeTitle" class="text-blue-400 truncate w-3/4">Select File</span><button onclick="closeModal('fileTreeModal')" class="text-gray-400 text-xl px-2">&times;</button></div>
+        <div class="modal-body p-0 bg-[#0d1117]" id="fileTreeList"><div class="text-center text-gray-500 text-sm py-4">Loading files...</div></div>
+    </div>
+</div>
+
+<div class="app-container">
+    <header class="header">
+        <button onclick="toggleSidebar()" class="text-gray-300 p-2 -ml-2"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+        <a id="headerTitle" target="_blank" href="#" class="font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 truncate max-w-[200px]" style="text-decoration:none;">HF Manager</a>
+        <div class="w-8"></div>
+    </header>
+    <div id="branchBar" class="hidden items-center gap-2 bg-[#161b22] border-b border-[#30363d] px-4 py-2 flex-shrink-0">
+        <span class="text-xs font-bold text-gray-400 shrink-0 inline-flex items-center gap-1"><i data-ic="git-branch"></i>Branch</span>
+        <select id="branchSelect" onchange="onBranchChange()" class="hidden"></select>
+        <button type="button" id="branchBtn" onclick="openBranchSheet()" class="modern-input !mb-0 !py-1.5 !px-2 text-xs flex-1 font-mono flex items-center gap-2 text-left min-w-0"><span id="branchBtnStar" class="star-gold flex"></span><span id="branchBtnName" class="truncate flex-1"></span><i data-ic="chevron-down"></i></button>
+    </div>
+    <div id="globalProgress" class="hidden bg-gray-900 border-b border-gray-800 p-3 flex-shrink-0">
+        <div class="flex justify-between text-xs text-gray-400 mb-1 font-semibold"><span id="statusText">Processing...</span><span id="fileStats">0/0</span></div>
+        <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+    </div>
+    <div id="logBoxContainer" class="hidden bg-[#0d1117] border-b border-[#30363d] flex-shrink-0 flex flex-col z-10 shadow-md">
+        <div class="flex justify-between items-center p-1 px-3 bg-[#161b22] text-xs font-bold text-gray-400 border-b border-[#30363d]">
+            <span>WorkFlow Logs</span>
+            <div class="flex items-center gap-3">
+                <button onclick="copyWorkflowLogs()" class="text-blue-400 hover:text-blue-300 font-bold px-1">Copy</button>
+                <button onclick="document.getElementById('logBoxContainer').classList.add('hidden')" class="p-1 hover:text-white"><i data-ic="x"></i></button>
+            </div>
+        </div>
+        <div id="logBox" class="h-28 p-2 text-[10px] font-mono text-green-400 overflow-y-auto whitespace-pre-wrap scrollbar-hide"></div>
+    </div>
+    <main class="main-content">
+        <div id="panel-backup" class="tab-panel active">
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-5 mb-4 shadow-lg shrink-0">
+                <h2 id="backupTitle" class="text-lg font-bold text-white mb-2 flex items-center gap-2"><i data-ic="download"></i><span>Backup Space</span></h2>
+                <p id="backupDesc" class="text-xs text-gray-400 mb-4">Download entire source code into a local ZIP file.</p>
+                <label id="targetLabel" class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Target Space ID</label>
+                <input type="text" id="targetSpaceInput" class="modern-input font-mono text-xs bg-[#0d1117]" readonly placeholder="Open the menu to select">
+                <button id="downloadBtn" onclick="startDownload()" class="primary-btn mt-2">Download ZIP</button>
+            </div>
+        </div>
+        <div id="panel-deploy" class="tab-panel">
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-5 mb-4 shadow-lg shrink-0">
+                <h2 class="text-lg font-bold text-white mb-2 flex items-center gap-2"><i data-ic="upload"></i><span>Deploy Archive</span></h2>
+                <p id="deployDesc" class="text-xs text-gray-400 mb-4">Upload a local ZIP file to overwrite/add files.</p>
+                <input type="file" id="zipFileInput" accept=".zip" class="modern-input !p-2 bg-[#0d1117]" onchange="showSelectedFileInfo()">
+                <p id="zipFileInfo" class="text-[10px] text-gray-500 -mt-2 mb-3 font-mono"></p>
+                <button id="uploadBtn" onclick="startUpload()" class="primary-btn blue-btn mt-2">Deploy to Hugging Face</button>
+            </div>
+            <div class="bg-red-950/20 border border-red-900/50 rounded-xl p-5 shadow-lg shrink-0">
+                <h2 class="text-lg font-bold text-red-400 mb-2 flex items-center gap-2"><i data-ic="trash"></i><span>Wipe</span></h2>
+                <p id="wipeDesc" class="text-xs text-gray-400 mb-4">Delete all internal files except protected ones (README.md).</p>
+                <button id="deleteBtn" onclick="startDeletion()" class="primary-btn danger-btn">Wipe All Files</button>
+            </div>
+        </div>
+        <div id="panel-history" class="tab-panel">
+            <button onclick="loadCommitHistory()" class="primary-btn mb-4 shrink-0 bg-[#21262d] border-[#30363d]"><i data-ic="refresh"></i><span>Refresh History</span></button>
+            <div id="commitsList" class="flex flex-col gap-3"><div class="text-center text-gray-500 text-sm py-10">Select from the menu and refresh to view commits.</div></div>
+        </div>
+        <div id="panel-editor" class="tab-panel">
+            <div class="bg-[#161b22] border border-[#30363d] rounded-xl flex flex-col overflow-hidden mb-3 shadow-lg shrink-0">
+                <div class="flex items-center justify-between px-3 py-1.5 bg-[#0d1117] border-b border-[#30363d]">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5"><i data-ic="layers"></i>File Tree Cache</span>
+                    <button id="treeCacheToggle" onclick="toggleTreeCache()" class="tgl" aria-label="Cache tree"></button>
+                </div>
+                <button onclick="openLiveFileSelector()" class="w-full bg-[#0d1117] hover:bg-[#1f2937] text-blue-300 p-3 flex justify-between items-center text-sm font-mono border-b border-[#30363d] transition-colors">
+                    <span id="currentFileName" class="truncate">Select a file...</span>
+                    <span class="flex items-center gap-2 shrink-0"><span id="editorLineCount" class="text-[10px] text-gray-500 font-bold hidden">0 lines</span><i data-ic="chevron-down"></i></span>
+                </button>
+                <div class="p-2 flex gap-2 overflow-x-auto scrollbar-hide items-center bg-[#161b22]">
+                    <button id="saveChangesBtn" onclick="savePendingEdit()" class="flex items-center gap-1 bg-[#238636] hover:bg-[#2ea043] text-white px-3 py-1.5 rounded text-xs font-bold transition-colors opacity-50 cursor-not-allowed shrink-0" disabled>
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                        Save
+                    </button>
+                    <button id="mdPreviewBtn" onclick="togglePreview()" class="hidden items-center gap-1 bg-[#8250df] hover:bg-[#9a6cf5] text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shrink-0"><i data-ic="eye"></i><span>Preview</span></button>
+                    <button type="button" onclick="openEditorMenu()" class="toolbar-btn" aria-label="More actions"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+                    <div class="h-4 w-px bg-[#30363d] mx-1 shrink-0"></div>
+                    <button onclick="actionCopy(editor)" class="toolbar-btn">Copy</button>
+                    <button onclick="actionPaste(editor)" class="toolbar-btn">Paste</button>
+                    <button onclick="actionCut(editor)" class="toolbar-btn">Cut</button>
+                    <button onclick="editor.selectAll()" class="toolbar-btn">All</button>
+                    <button onclick="editor.undo()" class="toolbar-btn">Undo</button>
+                    <button onclick="editor.redo()" class="toolbar-btn">Redo</button>
+                </div>
+            </div>
+            <div id="pendingDeployBar" class="hidden items-center justify-between gap-2 bg-[#1f2937] border border-[#f0883e]/50 rounded-lg px-3 py-2 mb-3 shrink-0">
+                <span id="pendingCountText" class="text-xs text-[#f0883e] font-bold">0 files saved, not deployed yet</span>
+                <button onclick="deployAllPendingEdits()" class="bg-[#238636] hover:bg-[#2ea043] text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shrink-0 inline-flex items-center gap-1"><i data-ic="upload"></i>Deploy All</button>
+            </div>
+            <div id="mobileEditor" class="shadow-lg"></div>
+            <div id="mdPreviewBox" class="hidden shadow-lg flex-1 rounded-lg border border-[#30363d] p-4 overflow-y-auto markdown-preview"></div>
+            <div id="binaryViewer" class="hidden shadow-lg rounded-lg border border-[#30363d] overflow-hidden"></div>
+            <div id="cmdHost-editor" class="shrink-0 mt-3"></div>
+            <div id="versionWrap" class="hidden shrink-0 mt-3 mb-2">
+                <div class="flex items-center justify-between mb-1.5"><span class="text-[11px] font-bold text-gray-400">Versions <span id="versionFile" class="font-mono text-gray-500"></span></span><span class="text-[10px] text-gray-600">tap one to compare</span></div>
+                <div id="versionStrip" class="ver-strip"></div>
+            </div>
+        </div>
+        <div id="panel-serverlogs" class="tab-panel h-full flex flex-col">
+            <div class="flex gap-2 mb-3 shrink-0">
+                <button id="logsBtn1" onclick="logsAction1()" class="primary-btn bg-[#238636] border-[#2ea043] flex-1 text-sm py-2"><i data-ic="terminal"></i><span>Build Logs</span></button>
+                <button id="logsBtn2" onclick="logsAction2()" class="primary-btn bg-[#6f42c1] border-[#8250df] flex-1 text-sm py-2"><i data-ic="play"></i><span>Run Logs</span></button>
+            </div>
+            <div class="flex gap-2 mb-3 shrink-0">
+                <button id="restartBtn" onclick="restartAction()" class="primary-btn blue-btn flex-1 text-sm py-2"><i data-ic="refresh"></i><span>Restart</span></button>
+                <button onclick="clearServerLogs()" class="primary-btn bg-gray-700 border-gray-600 w-auto px-4 py-2"><i data-ic="trash"></i></button>
+            </div>
+            <div id="serverLogsContainer" class="flex flex-col bg-[#0d1117] border border-[#30363d] rounded-xl overflow-hidden flex-1 shadow-lg transition-all duration-300 min-h-[50vh]">
+                <div class="flex justify-between items-center bg-[#161b22] px-3 py-2 border-b border-[#30363d] shrink-0 gap-2">
+                    <span id="serverLogsLabel" class="text-xs font-bold text-gray-400 shrink-0">Live Build &amp; Runtime Logs</span>
+                    <div class="flex items-center gap-3 shrink-0">
+                        <button id="errorsOnlyBtn" onclick="toggleErrorsOnly()" class="text-xs font-bold text-green-400 hover:text-red-400">Errors Only</button>
+                        <button onclick="copyServerLogs()" class="text-xs font-bold text-blue-400 hover:text-blue-300">Copy</button>
+                        <button id="fullscreenBtn" onclick="toggleFullScreenLogs()" class="inline-flex items-center gap-1 text-xs font-bold text-blue-400 hover:text-blue-300"><i data-ic="maximize"></i><span>Full Screen</span></button>
+                    </div>
+                </div>
+                <div id="serverLogsBox" class="flex-1 overflow-y-auto p-3 font-mono text-xs bg-black text-gray-300"></div>
+            </div>
+        </div>
+        <div id="panel-actions" class="tab-panel"><div id="actionsBody" class="w-full"></div></div>
+        <div id="panel-gdetails" class="tab-panel"><div id="gdetailsBody" class="w-full"></div></div>
+        <div id="panel-gshare" class="tab-panel"><div id="gshareBody" class="w-full"></div></div>
+        <div id="panel-secrets" class="tab-panel h-full flex flex-col">
+            <div class="flex justify-between items-center mb-3 shrink-0">
+                <h2 id="secretsTitle" class="text-lg font-bold text-white">Space Secrets</h2>
+                <button onclick="loadSecrets()" class="toolbar-btn !bg-[#238636] text-white">Refresh Table</button>
+            </div>
+            <div id="workerProxyBlock" class="mb-3 shrink-0">
+                <label class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1 block">Proxy URL (Cloudflare Worker, fixes CORS block)</label>
+                <div class="flex gap-2">
+                    <input type="text" id="workerProxyUrl" class="modern-input !mb-0 flex-1 text-xs" placeholder="https://your-worker.workers.dev" value="https://wpstatus.fz-anime.workers.dev">
+                    <button onclick="saveWorkerProxyUrl()" class="toolbar-btn !bg-[#0e639c] text-white shrink-0">Save</button>
+                </div>
+                <p class="text-[10px] text-gray-500 mt-1">Hugging Face blocks direct browser calls to the secrets API.</p>
+            </div>
+            <p id="ghSecretsNote" class="hidden text-[10px] text-gray-500 mb-3 shrink-0">GitHub Actions secrets are encrypted in your browser before upload.</p>
+            <div class="flex gap-2 mb-3 shrink-0">
+                <input type="text" id="newSecretName" class="modern-input !mb-0 flex-1 font-mono text-xs" placeholder="SECRET_NAME">
+                <input type="password" id="newSecretValue" class="modern-input !mb-0 flex-1 font-mono text-xs" placeholder="value">
+                <button onclick="addNewSecret()" class="toolbar-btn !bg-[#238636] text-white shrink-0 px-4">+ Add</button>
+            </div>
+            <div class="flex gap-2 px-2 pb-2 border-b border-[#30363d] text-xs font-bold text-gray-400 shrink-0 uppercase tracking-wider">
+                <div class="flex-1">Secret Name</div>
+                <div class="flex-1">Value</div>
+                <div class="w-16 text-center">Act</div>
+            </div>
+            <div id="secretsList" class="flex flex-col gap-2 pt-3 overflow-y-auto min-h-[150px] max-h-[35vh] border-b border-[#30363d] pb-4 shrink-0 custom-scrollbar">
+                <div class="text-center text-gray-500 text-sm py-4">Select an item from the menu to view secrets...</div>
+            </div>
+            <div class="flex flex-col mt-4 shrink-0">
+                <label class="text-xs font-bold text-gray-400 mb-2">Add Multiple (Format: Secret=value)</label>
+                <textarea id="bulkSecretsBox" class="modern-input font-mono text-sm resize-none" placeholder="BOT_TOKEN=12345:ABCDE&#10;API_KEY=my_secret_key"></textarea>
+                <button onclick="saveBulkSecrets()" class="primary-btn blue-btn mt-2 shrink-0">Save Bulk Secrets</button>
+            </div>
+        </div>
+    </main>
+    <nav class="bottom-nav">
+        <button class="nav-btn active" data-tab="backup" onclick="switchTab('backup')"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Backup</button>
+        <button class="nav-btn" data-tab="deploy" onclick="switchTab('deploy')"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>Deploy</button>
+        <button class="nav-btn" data-tab="history" onclick="switchTab('history')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>History</button>
+        <button class="nav-btn" data-tab="editor" onclick="switchTab('editor')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>Editor</button>
+        <button class="nav-btn" data-tab="serverlogs" onclick="switchTab('serverlogs')"><svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>Logs</button>
+        <button class="nav-btn" data-tab="secrets" onclick="switchTab('secrets')"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Secrets</button>
+        <button class="nav-btn ghonly" data-tab="actions" onclick="switchTab('actions')"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>Actions</button>
+        <button class="nav-btn gonly" data-tab="gdetails" onclick="switchTab('gdetails')"><svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line></svg>Details</button>
+        <button class="nav-btn gonly" data-tab="gshare" onclick="switchTab('gshare')"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>Share</button>
+    </nav>
+</div>
+
+<div id="settingsPage" class="spage">
+    <header class="header"><span class="w-8"></span><span id="settingsTitle" class="font-bold text-lg text-gray-100">Settings</span><button onclick="closeSettings()" class="text-gray-400 p-2 -mr-2" aria-label="Close"><i data-ic="x"></i></button></header>
+    <div id="settingsTabs" class="px-4 pt-2 shrink-0"></div>
+    <div id="settingsBody" class="flex-1 overflow-y-auto p-4 custom-scrollbar" style="padding-bottom:calc(24px + env(safe-area-inset-bottom));"></div>
+</div>
+
+<div id="createRepoPage" class="spage">
+    <header class="header"><button onclick="closePage('createRepoPage')" class="text-gray-300 p-2 -ml-2 flex items-center"><i data-ic="chevron-left"></i></button><span class="font-bold text-lg text-gray-100">New repository</span><span class="w-8"></span></header>
+    <div id="createRepoBody" class="flex-1 overflow-y-auto p-4 custom-scrollbar" style="padding-bottom:calc(24px + env(safe-area-inset-bottom));"></div>
+</div>
+
+<div id="repoSettingsPage" class="spage">
+    <header class="header"><button onclick="closePage('repoSettingsPage')" class="text-gray-300 p-2 -ml-2 flex items-center"><i data-ic="chevron-left"></i></button><span id="rsTitle" class="font-bold text-lg text-gray-100 truncate px-2">Repository settings</span><button onclick="closePage('repoSettingsPage')" class="text-gray-400 p-2 -mr-2"><i data-ic="x"></i></button></header>
+    <div id="repoSettingsBody" class="flex-1 overflow-y-auto p-4 custom-scrollbar" style="padding-bottom:calc(40px + env(safe-area-inset-bottom));"></div>
+</div>
+
+<div id="versionPage" class="spage">
+    <header class="header"><button onclick="closePage('versionPage')" class="text-gray-300 p-2 -ml-2 flex items-center"><i data-ic="chevron-left"></i></button><span id="vpTitle" class="font-bold text-lg text-gray-100 truncate px-2">Compare</span><button onclick="closePage('versionPage')" class="text-gray-400 p-2 -mr-2"><i data-ic="x"></i></button></header>
+    <div id="versionInfo" class="px-3 pt-3 shrink-0"></div>
+    <div id="versionBody" class="flex-1 min-h-0 overflow-auto px-3 py-3"></div>
+    <div id="versionActions" class="shrink-0 p-3 border-t border-[#30363d] bg-[#161b22] flex gap-2" style="padding-bottom:calc(12px + env(safe-area-inset-bottom));"></div>
+</div>
+
+<div id="runPage" class="spage">
+    <header class="header"><button onclick="closeRunPage()" class="text-gray-300 p-2 -ml-2 flex items-center"><i data-ic="chevron-left"></i></button><span id="runTitle" class="font-bold text-lg text-gray-100 truncate px-2">Run</span><button onclick="closeRunPage()" class="text-gray-400 p-2 -mr-2"><i data-ic="x"></i></button></header>
+    <div id="runBody" class="flex-1 overflow-y-auto p-3 custom-scrollbar" style="padding-bottom:calc(24px + env(safe-area-inset-bottom));"></div>
+</div>
+
+<div id="allSpacesModal" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">Batch Download<button onclick="closeModal('allSpacesModal')" class="text-gray-400 text-xl px-2">&times;</button></div>
+        <div class="modal-body flex flex-col gap-3">
+            <button onclick="startAllSpacesDownload('single')" class="primary-btn blue-btn text-sm flex-col py-3 h-auto"><span class="flex items-center gap-2"><i data-ic="package"></i>Single Master ZIP</span><span class="text-[10px] font-normal opacity-80">(Everything in 1 file)</span></button>
+            <button onclick="startAllSpacesDownload('individual')" class="primary-btn text-sm flex-col py-3 h-auto"><span class="flex items-center gap-2"><i data-ic="layers"></i>Individual ZIPs</span><span class="text-[10px] font-normal opacity-80">(Multiple files)</span></button>
+        </div>
+    </div>
+</div>
+
+<div id="historyViewerModal" class="modal-overlay">
+    <div class="modal-box w-full max-w-[95vw] h-[85vh] bg-[#161b22]">
+        <div class="modal-header flex-col items-start gap-1">
+            <div class="flex justify-between w-full items-center"><span id="hvTitle" class="truncate text-blue-400">Commit Viewer</span><button onclick="closeModal('historyViewerModal')" class="text-gray-400 text-xl px-2">&times;</button></div>
+            <div class="text-[10px] text-gray-500 font-mono" id="hvSubtitle">Loading...</div>
+        </div>
+        <div class="bg-[#161b22] border-b border-[#30363d] p-0 flex flex-col shrink-0">
+            <button onclick="openHistoryFileSelector()" class="w-full bg-[#0d1117] hover:bg-[#1f2937] text-blue-300 p-3 flex justify-between items-center text-sm font-mono transition-colors"><span id="hvFileName" class="truncate">Select a file...</span><i data-ic="chevron-down"></i></button>
+            <div id="historyToolbar" class="p-2 flex gap-2 overflow-x-auto scrollbar-hide items-center bg-[#161b22] border-t border-[#30363d] hidden">
+                <button id="hvDownloadBtn" onclick="downloadHistoryFile()" class="flex items-center gap-1 bg-[#0e639c] hover:bg-[#1177bb] text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shrink-0"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-3 3m0 0l-3-3m3 3V4"></path></svg>Download</button>
+                <div class="h-4 w-px bg-[#30363d] mx-1 shrink-0"></div>
+                <button onclick="actionCopy(historyEditor)" class="toolbar-btn">Copy</button>
+                <button onclick="actionPaste(historyEditor)" class="toolbar-btn">Paste</button>
+                <button onclick="actionCut(historyEditor)" class="toolbar-btn">Cut</button>
+                <button onclick="historyEditor.selectAll()" class="toolbar-btn">All</button>
+                <button onclick="historyEditor.undo()" class="toolbar-btn">Undo</button>
+                <button onclick="historyEditor.redo()" class="toolbar-btn">Redo</button>
+            </div>
+        </div>
+        <div class="modal-body p-0 bg-[#282c34] relative flex flex-col overflow-hidden" id="hvCodeContainer">
+            <div id="hvEmptyState" class="absolute inset-0 flex items-center justify-center text-gray-500 text-xs z-10 bg-[#0d1117]">Select a file to view code</div>
+            <div class="relative flex-1 w-full"><div id="historyEditor" class="hidden"></div></div>
+        </div>
+        <div id="cmdHost-hist" class="shrink-0 p-2 bg-[#161b22] border-t border-[#30363d]"></div>
+    </div>
+</div>
+
+<!-- Scripts (order matters!) -->
+<script src="js/core/config.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/state.js"></script>
+<script src="js/api/huggingface.js"></script>
+<script src="js/api/github.js"></script>
+<script src="js/api/files.js"></script>
+<script src="js/ui/layout.js"></script>
+<script src="js/ui/dialogs.js"></script>
+<script src="js/ui/filetree.js"></script>
+<script src="js/ui/commandbar.js"></script>
+<script src="js/features/editor.js"></script>
+<script src="js/features/history.js"></script>
+<script src="js/features/backup-deploy.js"></script>
+<script src="js/features/logs.js"></script>
+<script src="js/features/secrets.js"></script>
+<script src="js/features/accounts.js"></script>
+<script src="js/features/provider.js"></script>
+<script src="js/features/create-repo.js"></script>
+<script src="js/features/repo-settings.js"></script>
+<script src="js/features/branch.js"></script>
+<script src="js/features/pages-gists.js"></script>
+<script src="js/features/actions.js"></script>
+<script src="js/features/hf-extras.js"></script>
+<script src="js/cloudflare/cloudflare.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

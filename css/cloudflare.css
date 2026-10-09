@@ -1,0 +1,25 @@
+.cfrow { display:flex; gap:6px; align-items:stretch; flex-shrink:0; }
+.cfrow .cfgearbtn { width:34px; flex-shrink:0; border-radius:8px; border:1px solid #30363d; background:#161b22; color:#8b949e; display:flex; align-items:center; justify-content:center; }
+.cfsec { display:flex; align-items:center; gap:5px; padding:6px 11px; border-radius:999px; border:1px solid #30363d; background:#0d1117; color:#8b949e; font-size:11px; font-weight:700; flex-shrink:0; white-space:nowrap; }
+.cfsec.active { color:#f6821f; border-color:#f6821f; background:rgba(246,130,31,.12); }
+#cfNav .nav-btn { width:auto; flex:1; min-width:0; }
+#cfNav .nav-btn.active { color:#f6821f; }
+#cfRoot .cfdanger { background:#da3633!important; border-color:#ff7b72!important; color:#fff!important; }
+#cfRoot .cfgray { background:#21262d!important; border-color:#30363d!important; color:#c9d1d9!important; }
+.cfbadge { display:inline-block; font-size:10px; font-weight:700; padding:1px 8px; border-radius:999px; background:#21262d; color:#9da7b3; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.cfbadge.ok { background:rgba(46,160,67,.2); color:#3fb950; }
+.cfbadge.bad { background:rgba(248,81,73,.2); color:#f85149; }
+.cfbadge.run { background:rgba(210,153,34,.2); color:#e3b341; }
+.cfpre { background:#000; border:1px solid #30363d; border-radius:8px; padding:8px; font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; color:#c9d1d9; white-space:pre-wrap; word-break:break-word; overflow:auto; }
+.cfpre .log-line[data-err] { color:#f85149; }
+.cftable { border-collapse:collapse; font:11px ui-monospace,SFMono-Regular,Menlo,monospace; color:#c9d1d9; width:max-content; min-width:100%; }
+.cftable th { background:#161b22; color:#8b949e; text-align:left; position:sticky; top:0; }
+.cftable th, .cftable td { border:1px solid #30363d; padding:4px 8px; white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+.cfhome { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.cftile { display:flex; flex-direction:column; gap:6px; padding:14px; border-radius:12px; border:1px solid #30363d; background:#161b22; text-align:left; color:#e6edf3; }
+.cftile:active { background:#21262d; }
+.cftile b { font-size:14px; }
+.cftile small { color:#8b949e; font-size:11px; }
+.cftile .ic { width:20px; height:20px; color:#f6821f; }
+#cfBody details>summary { list-style:none; }
+#cfBody details>summary::-webkit-details-marker { display:none; }
